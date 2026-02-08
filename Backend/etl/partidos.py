@@ -1,6 +1,7 @@
 from typing import List, Optional
 import logging
 from datetime import datetime, timezone
+import re
 from scrapers.flashscore_adapter import PartidoScraped
 from etl.client import get_supabase_client
 
@@ -8,7 +9,44 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
 
 
-def parse_flashscore_fecha(fecha_raw: str) -> Optional[str]:
+def _infer_year_from_temporada(month: int, temporada: Optional[str], fallback_year: int) -> int:
+    """
+    Infere el año correcto usando la temporada.
+    - Para temporadas interanuales "2024/2025":
+      meses Jul-Dic -> 2024, meses Ene-Jun -> 2025.
+    - Para temporadas de un solo año "2025": usa 2025.
+    - Si no se puede inferir, devuelve fallback_year.
+    """
+    if not temporada:
+        return fallback_year
+
+    temporada = temporada.strip()
+    if not temporada:
+        return fallback_year
+
+    # 2024/2025 o 2024/25
+    match = re.search(r"(\d{4})\s*/\s*(\d{2,4})", temporada)
+    if match:
+        start_year = int(match.group(1))
+        end_raw = match.group(2)
+        if len(end_raw) == 2:
+            end_year = (start_year // 100) * 100 + int(end_raw)
+            if end_year < start_year:
+                end_year += 100
+        else:
+            end_year = int(end_raw)
+
+        return start_year if month >= 7 else end_year
+
+    # Temporada con año único (e.g. "2025")
+    match = re.search(r"(\d{4})", temporada)
+    if match:
+        return int(match.group(1))
+
+    return fallback_year
+
+
+def parse_flashscore_fecha(fecha_raw: str, temporada: Optional[str] = None) -> Optional[str]:
     """
     Convierte fecha Flashscore "DD.MM. HH:MM" a ISO 8601 UTC datetime string.
     Usa año actual si no viene en el string.
@@ -24,11 +62,12 @@ def parse_flashscore_fecha(fecha_raw: str) -> Optional[str]:
         # Remover espacios múltiples
         fecha_raw = ' '.join(fecha_raw.split())
         
-        # Obtener año actual
+        # Año por defecto (fallback)
         year = datetime.now(timezone.utc).year
         
         # Parsear "DD.MM. HH:MM"
         # Puede ser: "02.02. 18:20" o "2.2. 18:20" o "02.02. 18:20:00"
+        # También puede incluir año: "02.02.2025 18:20"
         parts = fecha_raw.split()
         if len(parts) < 2:
             return None
@@ -41,11 +80,15 @@ def parse_flashscore_fecha(fecha_raw: str) -> Optional[str]:
         
         # Parsear fecha
         fecha_split = fecha_parte.split('.')
-        if len(fecha_split) != 2:
+        if len(fecha_split) < 2:
             return None
-        
+
         day = int(fecha_split[0])
         month = int(fecha_split[1])
+        if len(fecha_split) >= 3 and fecha_split[2].isdigit():
+            year = int(fecha_split[2])
+        else:
+            year = _infer_year_from_temporada(month, temporada, year)
         
         # Parsear hora
         hora_split = hora_parte.split(':')
@@ -222,7 +265,7 @@ def upsert_partidos(partidos: List[PartidoScraped]) -> int:
                 
                 # Insertar partido (usar nombres exactos de columnas: equipo_local_id, equipo_visitante_id, fecha_partido)
                 # Parsear fecha_raw a timestamp válido
-                fecha_partido_parsed = parse_flashscore_fecha(partido.fecha_raw)
+                fecha_partido_parsed = parse_flashscore_fecha(partido.fecha_raw, partido.temporada)
                 
                 supabase.table("partidos").insert({
                     "temporada_id": temporada_id,
