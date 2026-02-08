@@ -234,7 +234,7 @@
       <div class="control-bar">
         <div style="flex: 1 1 300px;">
           <label for="baseUrl">Base URL</label>
-          <input id="baseUrl" type="text" placeholder="http://localhost:8000" />
+          <input id="baseUrl" type="text" placeholder="https://tu-backend.com" />
         </div>
         <button id="useOrigin">Usar origen actual</button>
       </div>
@@ -345,7 +345,7 @@
 
     const origin = window.location.origin && window.location.origin !== "null"
       ? window.location.origin
-      : "http://localhost:8000";
+      : "";
 
     baseInput.value = origin;
 

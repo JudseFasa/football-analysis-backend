@@ -354,7 +354,7 @@ button:not(:disabled):hover {
       <div class="hero-meta">
         <div>
           <span class="meta-label">Base URL API</span>
-          <span class="meta-value">http://localhost:8000</span>
+          <span id="apiBaseValue" class="meta-value">Detectando...</span>
         </div>
         <div>
           <span class="meta-label">Estado</span>
@@ -459,11 +459,14 @@ button:not(:disabled):hover {
   </div>
 
   <script>
-// Base URL fijo segun requisito
-const API_BASE = "http://localhost:8000";
+// Base URL basada en el origen actual
+const API_BASE = window.location.origin && window.location.origin !== "null"
+  ? window.location.origin
+  : "";
 
 const els = {
   statusBadge: document.getElementById("statusBadge"),
+  apiBaseValue: document.getElementById("apiBaseValue"),
   pais: document.getElementById("paisSelect"),
   liga: document.getElementById("ligaSelect"),
   temporada: document.getElementById("temporadaSelect"),
@@ -496,6 +499,11 @@ const state = {
 function setStatus(text, type = "muted") {
   els.statusBadge.textContent = text;
   els.statusBadge.className = `status-pill ${type}`.trim();
+}
+
+function syncApiBaseUi() {
+  els.apiBaseValue.textContent = API_BASE || "Ruta relativa";
+  setStatus(API_BASE ? "Base configurada" : "Usando ruta relativa");
 }
 
 function setHint(message = "", isError = false) {
@@ -954,6 +962,7 @@ function initListeners() {
 }
 
 async function bootstrap() {
+  syncApiBaseUi();
   resetResults();
   updateButtonsState();
   initListeners();
