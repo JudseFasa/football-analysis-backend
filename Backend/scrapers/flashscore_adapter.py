@@ -21,6 +21,7 @@ import os
 # se realiza en `scrapers.browser.get_launch_kwargs()`.
 from scrapers.browser import get_launch_kwargs
 import re
+from urllib.parse import urlsplit, urlunsplit
 
 # ===== LOGGING MÍNIMO =====
 logger = logging.getLogger(__name__)
@@ -53,6 +54,53 @@ def extract_country_slug_from_url(url: str) -> str:
         raise ValueError(f"Slug inválido extraído de URL: {slug}")
     
     return slug
+
+
+def _normalize_results_url(url: str) -> str:
+    """
+    Normaliza una URL de liga para apuntar a la sección de resultados.
+    Ejemplos:
+    - /partidos/ -> /resultados/
+    - /futbol/<pais>/<liga>/ -> /futbol/<pais>/<liga>/resultados/
+    Respeta el dominio y el esquema.
+    """
+    if not url or not isinstance(url, str):
+        return url
+
+    cleaned = url.strip()
+    if not cleaned:
+        return cleaned
+
+    # Asegurar que haya una barra final para simplificar el parseo.
+    if not cleaned.endswith("/"):
+        cleaned += "/"
+
+    parts = urlsplit(cleaned)
+    path = parts.path or ""
+
+    # Normaliza rutas conocidas
+    if "/partidos/" in path:
+        path = path.replace("/partidos/", "/resultados/")
+    else:
+        # Si la URL apunta directamente a la liga, agrega resultados.
+        m = re.match(r"^(/futbol/[^/]+/[^/]+/)(.*)$", path)
+        if m:
+            base, tail = m.groups()
+            if tail == "" or tail == "resultados/" or tail == "partidos/":
+                path = base + "resultados/"
+
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
+
+
+def _maybe_force_results_url(current_url: str) -> str:
+    """
+    Si la página terminó en /partidos/, fuerza a /resultados/.
+    """
+    if not current_url:
+        return current_url
+    if "/partidos/" in current_url:
+        return current_url.replace("/partidos/", "/resultados/")
+    return current_url
 
 
 def _format_country_from_slug(slug: str) -> str:
@@ -191,8 +239,22 @@ def _parse_minuto_int(minuto_str: str) -> int:
         return 0
 
 
+def _is_final_score(home_score: str, away_score: str) -> bool:
+    """
+    Retorna True si ambos marcadores son numéricos.
+    Flashscore muestra '-' cuando el partido no está finalizado.
+    """
+    if not home_score or not away_score:
+        return False
+    home = home_score.strip()
+    away = away_score.strip()
+    if "-" in home or "-" in away:
+        return False
+    return home.isdigit() and away.isdigit()
+
+
 # ===== FUNCIÓN PRINCIPAL: SCRAPING DE PARTIDOS =====
-async def scrape_partidos_liga(url: str) -> List[PartidoScraped]:
+async def scrape_partidos_liga(url: str, only_finished: bool = True) -> List[PartidoScraped]:
     """
     Recibe una URL de liga de Flashscore
     Devuelve una lista de partidos scrapeados
@@ -211,8 +273,14 @@ async def scrape_partidos_liga(url: str) -> List[PartidoScraped]:
             # Extraer pais_slug de la URL PRIMERO (obligatorio para PartidoScraped)
             pais_slug = extract_country_slug_from_url(url)
             
-            # Cargar página
-            await page.goto(url, timeout=60000, wait_until="domcontentloaded")
+            # Cargar página (forzar resultados si se requieren finalizados)
+            target_url = _normalize_results_url(url) if only_finished else url
+            await page.goto(target_url, timeout=60000, wait_until="domcontentloaded")
+
+            if only_finished:
+                redirected = _maybe_force_results_url(page.url)
+                if redirected != page.url:
+                    await page.goto(redirected, timeout=60000, wait_until="domcontentloaded")
 
             # Extraer metadata
             pais = await _resolve_country_from_page(page, pais_slug)
@@ -280,7 +348,7 @@ async def scrape_partidos_liga(url: str) -> List[PartidoScraped]:
                         goles_visitante_str = await safe_text(item.locator(".event__score--away"), "")
 
                         # Filtrar: Solo guardar partidos finalizados
-                        if not goles_local_str or not goles_visitante_str:
+                        if not _is_final_score(goles_local_str, goles_visitante_str):
                             continue
 
                         # Convertir goles a int
@@ -450,7 +518,7 @@ def scrape_goles_partido(partido_link: str) -> List[EventoScraped]:
 
 
 # ===== FUNCIÓN PRINCIPAL: SCRAPING DE PARTIDOS (SYNC) =====
-def scrape_partidos_liga_sync(url: str) -> List[PartidoScraped]:
+def scrape_partidos_liga_sync(url: str, only_finished: bool = True) -> List[PartidoScraped]:
     """
     Versión síncrona de scrape_partidos_liga para compatibilidad con entornos sync.
     """
@@ -468,8 +536,14 @@ def scrape_partidos_liga_sync(url: str) -> List[PartidoScraped]:
             # Extraer pais_slug de la URL PRIMERO (obligatorio para PartidoScraped)
             pais_slug = extract_country_slug_from_url(url)
             
-            # Cargar página
-            page.goto(url, timeout=60000, wait_until="domcontentloaded")
+            # Cargar página (forzar resultados si se requieren finalizados)
+            target_url = _normalize_results_url(url) if only_finished else url
+            page.goto(target_url, timeout=60000, wait_until="domcontentloaded")
+
+            if only_finished:
+                redirected = _maybe_force_results_url(page.url)
+                if redirected != page.url:
+                    page.goto(redirected, timeout=60000, wait_until="domcontentloaded")
 
             # Extraer metadata
             pais = _resolve_country_from_page_sync(page, pais_slug)
@@ -533,7 +607,7 @@ def scrape_partidos_liga_sync(url: str) -> List[PartidoScraped]:
                         goles_visitante_str = safe_text_sync(item.locator(".event__score--away"), "") or ""
 
                         # Filtrar: Solo guardar partidos finalizados
-                        if not goles_local_str or not goles_visitante_str:
+                        if not _is_final_score(goles_local_str, goles_visitante_str):
                             continue
 
                         # Convertir goles a int
