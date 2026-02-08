@@ -140,6 +140,23 @@ h3 {
   color: var(--danger);
 }
 
+.quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.quick-links a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.quick-links a:hover {
+  text-decoration: underline;
+}
+
 .content {
   display: grid;
   gap: 24px;
@@ -359,6 +376,10 @@ button:not(:disabled):hover {
         <div>
           <span class="meta-label">Estado</span>
           <span id="statusBadge" class="status-pill">Base configurada</span>
+        </div>
+        <div class="quick-links">
+          <a href="/scraping-form">Ir a Scraping</a>
+          <a href="/api-test">API Playground</a>
         </div>
       </div>
     </header>

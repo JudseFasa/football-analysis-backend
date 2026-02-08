@@ -27,6 +27,11 @@ async def dashboard(request: Request):
 async def api_test(request: Request):
     return templates.TemplateResponse("api_test.html", {"request": request})
 
+# Ruta para formulario simple de scraping
+@router.get("/scraping-form", response_class=HTMLResponse)
+async def scraping_form(request: Request):
+    return templates.TemplateResponse("scraping_form.html", {"request": request})
+
 # Ruta para ejecutar scraping manual
 @router.post("/scraping", response_class=HTMLResponse)
 async def manual_scraping(request: Request, url: str = Form(...)):
