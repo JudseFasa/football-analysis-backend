@@ -1,0 +1,443 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>API Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-1: #0d0f1a;
+      --bg-2: #101b2d;
+      --card: rgba(255, 255, 255, 0.08);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --text: #eef3ff;
+      --muted: #a8b3cf;
+      --accent: #5ee6d6;
+      --accent-2: #f6c177;
+      --danger: #ff6b6b;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--text);
+      background: radial-gradient(1200px 600px at 10% 10%, #203a5f 0%, transparent 60%),
+                  radial-gradient(1000px 700px at 90% 10%, #2b1f4a 0%, transparent 60%),
+                  linear-gradient(135deg, var(--bg-1), var(--bg-2));
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    header {
+      display: grid;
+      gap: 16px;
+      padding: 28px;
+      border-radius: var(--radius);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    header::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 80% 20%, rgba(94, 230, 214, 0.35), transparent 55%);
+      pointer-events: none;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    p.lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .control-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .control-bar input {
+      flex: 1 1 280px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 14px;
+      min-height: 320px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(140deg, rgba(94, 230, 214, 0.08), transparent 45%);
+      pointer-events: none;
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(94, 230, 214, 0.16);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: rgba(10, 12, 24, 0.6);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    textarea {
+      min-height: 120px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: rgba(94, 230, 214, 0.6);
+      box-shadow: 0 0 0 3px rgba(94, 230, 214, 0.15);
+    }
+
+    button {
+      border: none;
+      padding: 10px 16px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), #3bb9ff);
+      color: #04111f;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    button.secondary {
+      background: rgba(246, 193, 119, 0.2);
+      color: var(--accent-2);
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .response {
+      background: rgba(9, 12, 22, 0.7);
+      border-radius: 12px;
+      padding: 12px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: #d7e1ff;
+      min-height: 120px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .response.error {
+      border-color: rgba(255, 107, 107, 0.4);
+      color: #ffd6d6;
+    }
+
+    .row {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card, header {
+      animation: rise 0.4s ease both;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <span class="tag">API Playground</span>
+      <h1>Prueba rápida de endpoints</h1>
+      <p class="lead">
+        Esta página consume la API actual. Ajusta el Base URL si tu backend corre en otro puerto o host.
+      </p>
+      <div class="control-bar">
+        <div style="flex: 1 1 300px;">
+          <label for="baseUrl">Base URL</label>
+          <input id="baseUrl" type="text" placeholder="http://localhost:8000" />
+        </div>
+        <button id="useOrigin">Usar origen actual</button>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Health Check</h2>
+        <span class="meta">GET /status</span>
+        <button data-action="status">Probar</button>
+        <div class="response" data-response="status"></div>
+      </article>
+
+      <article class="card">
+        <h2>Scraping Liga</h2>
+        <span class="meta">POST /scraping/league</span>
+        <div>
+          <label for="scrapeLeagueUrl">URL de liga</label>
+          <input id="scrapeLeagueUrl" type="text" value="https://www.flashscore.co/futbol/colombia/primera-a/" />
+        </div>
+        <div class="row">
+          <div>
+            <label for="scrapeLeagueForce">force</label>
+            <select id="scrapeLeagueForce">
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+          </div>
+          <div>
+            <label for="scrapeLeagueDryRun">dry_run</label>
+            <select id="scrapeLeagueDryRun">
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+          </div>
+        </div>
+        <button data-action="scrapeLeague">Ejecutar</button>
+        <div class="response" data-response="scrapeLeague"></div>
+      </article>
+
+      <article class="card">
+        <h2>Scraping Partido</h2>
+        <span class="meta">POST /scraping/match</span>
+        <div>
+          <label for="scrapeMatchUrl">Link del partido</label>
+          <input id="scrapeMatchUrl" type="text" placeholder="https://www.flashscore.co/partido/futbol/..." />
+        </div>
+        <button data-action="scrapeMatch">Ejecutar</button>
+        <div class="response" data-response="scrapeMatch"></div>
+      </article>
+
+      <article class="card">
+        <h2>Estado Job</h2>
+        <span class="meta">GET /scraping/status/{job_id}</span>
+        <div>
+          <label for="jobId">Job ID</label>
+          <input id="jobId" type="text" placeholder="job_123" />
+        </div>
+        <button data-action="jobStatus">Consultar</button>
+        <div class="response" data-response="jobStatus"></div>
+      </article>
+
+      <article class="card">
+        <h2>Análisis B10B</h2>
+        <span class="meta">POST /analysis/b10b</span>
+        <div>
+          <label for="b10bPayload">Body JSON</label>
+          <textarea id="b10bPayload">{
+  "tipo": "B10B",
+  "filtros": {
+    "pais": "COLOMBIA",
+    "liga": "Primera A",
+    "temporada": "2025",
+    "fase": "Primera A - Clausura"
+  },
+  "parametros": {
+    "equipo_local": "Tolima",
+    "equipo_visitante": "Junior",
+    "umbral": 2.5
+  }
+}</textarea>
+        </div>
+        <button data-action="b10b">Ejecutar</button>
+        <div class="response" data-response="b10b"></div>
+      </article>
+
+      <article class="card">
+        <h2>Poisson Puro</h2>
+        <span class="meta">POST /analysis/poisson</span>
+        <div>
+          <label for="poissonPayload">Body JSON</label>
+          <textarea id="poissonPayload">{
+  "temporada_id": 4,
+  "equipo_local_id": 23,
+  "equipo_visitante_id": 15,
+  "umbral_goles": 2.5
+}</textarea>
+        </div>
+        <button data-action="poisson">Ejecutar</button>
+        <div class="response" data-response="poisson"></div>
+      </article>
+    </section>
+  </div>
+
+  <script>
+    const baseInput = document.getElementById("baseUrl");
+    const useOriginBtn = document.getElementById("useOrigin");
+
+    const origin = window.location.origin && window.location.origin !== "null"
+      ? window.location.origin
+      : "http://localhost:8000";
+
+    baseInput.value = origin;
+
+    useOriginBtn.addEventListener("click", () => {
+      baseInput.value = origin;
+    });
+
+    function getBaseUrl() {
+      return baseInput.value.replace(/\/$/, "");
+    }
+
+    async function callApi({ method, path, body }) {
+      const url = `${getBaseUrl()}${path}`;
+      const options = { method, headers: {} };
+
+      if (body !== undefined) {
+        options.headers["Content-Type"] = "application/json";
+        options.body = JSON.stringify(body);
+      }
+
+      const response = await fetch(url, options);
+      const text = await response.text();
+
+      try {
+        return { ok: response.ok, status: response.status, data: JSON.parse(text) };
+      } catch {
+        return { ok: response.ok, status: response.status, data: text };
+      }
+    }
+
+    function renderResponse(key, result) {
+      const el = document.querySelector(`[data-response="${key}"]`);
+      if (!el) return;
+
+      const payload = {
+        status: result.status,
+        ok: result.ok,
+        data: result.data
+      };
+
+      el.textContent = JSON.stringify(payload, null, 2);
+      el.classList.toggle("error", !result.ok);
+    }
+
+    document.querySelector("[data-action=\"status\"]").addEventListener("click", async () => {
+      renderResponse("status", await callApi({ method: "GET", path: "/status" }));
+    });
+
+    document.querySelector("[data-action=\"scrapeLeague\"]").addEventListener("click", async () => {
+      const body = {
+        url: document.getElementById("scrapeLeagueUrl").value.trim(),
+        force: document.getElementById("scrapeLeagueForce").value === "true",
+        dry_run: document.getElementById("scrapeLeagueDryRun").value === "true"
+      };
+      renderResponse("scrapeLeague", await callApi({ method: "POST", path: "/scraping/league", body }));
+    });
+
+    document.querySelector("[data-action=\"scrapeMatch\"]").addEventListener("click", async () => {
+      const body = {
+        link: document.getElementById("scrapeMatchUrl").value.trim()
+      };
+      renderResponse("scrapeMatch", await callApi({ method: "POST", path: "/scraping/match", body }));
+    });
+
+    document.querySelector("[data-action=\"jobStatus\"]").addEventListener("click", async () => {
+      const jobId = document.getElementById("jobId").value.trim();
+      if (!jobId) {
+        renderResponse("jobStatus", { ok: false, status: 0, data: "job_id es requerido" });
+        return;
+      }
+      renderResponse("jobStatus", await callApi({ method: "GET", path: `/scraping/status/${encodeURIComponent(jobId)}` }));
+    });
+
+    document.querySelector("[data-action=\"b10b\"]").addEventListener("click", async () => {
+      const raw = document.getElementById("b10bPayload").value.trim();
+      try {
+        const body = JSON.parse(raw);
+        renderResponse("b10b", await callApi({ method: "POST", path: "/analysis/b10b", body }));
+      } catch (err) {
+        renderResponse("b10b", { ok: false, status: 0, data: `JSON inválido: ${err.message}` });
+      }
+    });
+
+    document.querySelector("[data-action=\"poisson\"]").addEventListener("click", async () => {
+      const raw = document.getElementById("poissonPayload").value.trim();
+      try {
+        const body = JSON.parse(raw);
+        renderResponse("poisson", await callApi({ method: "POST", path: "/analysis/poisson", body }));
+      } catch (err) {
+        renderResponse("poisson", { ok: false, status: 0, data: `JSON inválido: ${err.message}` });
+      }
+    });
+  </script>
+</body>
+</html>

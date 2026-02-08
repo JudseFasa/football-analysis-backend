@@ -1,0 +1,966 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard de Analisis de Partidos</title>
+  <style>
+:root {
+  --bg: #0f172a;
+  --bg-soft: #111c33;
+  --panel: rgba(255, 255, 255, 0.06);
+  --panel-border: rgba(255, 255, 255, 0.12);
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #4fefc6;
+  --accent-2: #f5b971;
+  --danger: #ff6b6b;
+  --shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  --radius: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+  color: var(--text);
+  background: radial-gradient(1000px 600px at 10% 15%, #23395b 0%, transparent 55%),
+    radial-gradient(900px 700px at 90% 10%, #2a1d4a 0%, transparent 60%),
+    linear-gradient(135deg, var(--bg), var(--bg-soft));
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 36px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 32px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(79, 239, 198, 0.2), transparent 55%);
+  pointer-events: none;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: clamp(28px, 3.5vw, 44px);
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.lead {
+  margin: 0;
+  color: var(--muted);
+  max-width: 520px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: rgba(79, 239, 198, 0.15);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.hero-meta {
+  display: grid;
+  gap: 12px;
+  min-width: 220px;
+  z-index: 1;
+}
+
+.meta-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.meta-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(79, 239, 198, 0.2);
+  color: var(--accent);
+}
+
+.status-pill.muted {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--muted);
+}
+
+.status-pill.error {
+  background: rgba(255, 107, 107, 0.2);
+  color: var(--danger);
+}
+
+.content {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: start;
+}
+
+.panel {
+  padding: 24px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 16px;
+}
+
+.section-note {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.form-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+select,
+input {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(8, 13, 26, 0.7);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+select:focus,
+input:focus {
+  border-color: rgba(79, 239, 198, 0.6);
+  box-shadow: 0 0 0 3px rgba(79, 239, 198, 0.15);
+}
+
+select:disabled,
+input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.helper-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 20px;
+}
+
+.helper {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.helper.error {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+button {
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: none;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  color: #02131f;
+  background: linear-gradient(135deg, var(--accent), #40a9ff);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 25px rgba(79, 239, 198, 0.2);
+}
+
+button.secondary {
+  background: linear-gradient(135deg, rgba(245, 185, 113, 0.85), rgba(255, 210, 142, 0.6));
+  color: #2b1b00;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.results {
+  min-height: 420px;
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.results-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.result-card {
+  padding: 18px;
+  border-radius: 14px;
+  background: rgba(10, 16, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 12px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.summary {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.summary table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.summary td {
+  padding: 4px 0;
+  color: var(--muted);
+}
+
+.summary td.value {
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+.json-block {
+  margin: 0;
+  padding: 12px;
+  background: rgba(8, 11, 20, 0.75);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.5;
+  font-family: "Consolas", "Lucida Console", "Courier New", monospace;
+  white-space: pre-wrap;
+}
+
+.footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .hero {
+    padding: 22px;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="hero">
+      <div>
+        <span class="pill">Football Analytics</span>
+        <h1>Dashboard de analisis de partidos</h1>
+        <p class="lead">
+          Selecciona un partido real desde la base de datos y ejecuta analisis Poisson o B10B sin recargar la pagina.
+        </p>
+      </div>
+      <div class="hero-meta">
+        <div>
+          <span class="meta-label">Base URL API</span>
+          <span class="meta-value">http://localhost:8000</span>
+        </div>
+        <div>
+          <span class="meta-label">Estado</span>
+          <span id="statusBadge" class="status-pill">Base configurada</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="panel">
+        <h2>Seleccion de partido</h2>
+        <p class="section-note">Los selectores se cargan en cascada segun los datos reales de la API.</p>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="paisSelect">Pais</label>
+            <select id="paisSelect" disabled>
+              <option>Cargando...</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ligaSelect">Liga</label>
+            <select id="ligaSelect" disabled>
+              <option>Selecciona pais primero</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="temporadaSelect">Temporada</label>
+            <select id="temporadaSelect" disabled>
+              <option>Selecciona liga primero</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="faseSelect">Fase</label>
+            <select id="faseSelect" disabled>
+              <option>Selecciona temporada primero</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="equipoLocalSelect">Equipo local</label>
+            <select id="equipoLocalSelect" disabled>
+              <option>Selecciona fase primero</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="equipoVisitanteSelect">Equipo visitante</label>
+            <select id="equipoVisitanteSelect" disabled>
+              <option>Selecciona fase primero</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="umbralInput">Umbral de goles</label>
+            <input id="umbralInput" type="number" step="1" value="2.5" min="0.5" />
+          </div>
+        </div>
+
+        <div class="helper-row">
+          <span id="formHint" class="helper">Completa la seleccion para habilitar analisis.</span>
+          <span id="errorHint" class="helper error"></span>
+        </div>
+
+        <div class="actions">
+          <button id="poissonBtn" disabled>Analizar Poisson</button>
+          <button id="b10bBtn" class="secondary" disabled>Analizar B10B</button>
+        </div>
+      </section>
+
+      <section class="panel results">
+        <div class="results-header">
+          <h2>Resultados</h2>
+          <span class="section-note">Se actualizan automaticamente al ejecutar un analisis.</span>
+        </div>
+        <div class="results-grid">
+          <article class="result-card">
+            <div class="card-header">
+              <h3>Poisson</h3>
+              <span id="poissonStatus" class="status-pill muted">Sin ejecutar</span>
+            </div>
+            <div id="poissonSummary" class="summary"></div>
+            <pre id="poissonJson" class="json-block">{
+  "status": "pending"
+}</pre>
+          </article>
+
+          <article class="result-card">
+            <div class="card-header">
+              <h3>B10B</h3>
+              <span id="b10bStatus" class="status-pill muted">Sin ejecutar</span>
+            </div>
+            <div id="b10bSummary" class="summary"></div>
+            <pre id="b10bJson" class="json-block">{
+  "status": "pending"
+}</pre>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Dashboard UI - Consumo directo de API REST.</span>
+    </footer>
+  </div>
+
+  <script>
+// Base URL fijo segun requisito
+const API_BASE = "http://localhost:8000";
+
+const els = {
+  statusBadge: document.getElementById("statusBadge"),
+  pais: document.getElementById("paisSelect"),
+  liga: document.getElementById("ligaSelect"),
+  temporada: document.getElementById("temporadaSelect"),
+  fase: document.getElementById("faseSelect"),
+  local: document.getElementById("equipoLocalSelect"),
+  visitante: document.getElementById("equipoVisitanteSelect"),
+  umbral: document.getElementById("umbralInput"),
+  poissonBtn: document.getElementById("poissonBtn"),
+  b10bBtn: document.getElementById("b10bBtn"),
+  formHint: document.getElementById("formHint"),
+  errorHint: document.getElementById("errorHint"),
+  poissonStatus: document.getElementById("poissonStatus"),
+  b10bStatus: document.getElementById("b10bStatus"),
+  poissonSummary: document.getElementById("poissonSummary"),
+  b10bSummary: document.getElementById("b10bSummary"),
+  poissonJson: document.getElementById("poissonJson"),
+  b10bJson: document.getElementById("b10bJson"),
+};
+
+// Estado de seleccion actual
+const state = {
+  pais: null,
+  liga: null,
+  temporada: { id: null, nombre: null },
+  fase: null,
+  equipoLocal: { id: null, nombre: null },
+  equipoVisitante: { id: null, nombre: null },
+};
+
+function setStatus(text, type = "muted") {
+  els.statusBadge.textContent = text;
+  els.statusBadge.className = `status-pill ${type}`.trim();
+}
+
+function setHint(message = "", isError = false) {
+  els.errorHint.textContent = isError ? message : "";
+  if (!isError) {
+    els.formHint.textContent = message || "Completa la seleccion para habilitar analisis.";
+  }
+}
+
+function clearSelect(select, placeholder) {
+  select.innerHTML = "";
+  const option = document.createElement("option");
+  option.textContent = placeholder;
+  option.value = "";
+  option.disabled = true;
+  option.selected = true;
+  select.appendChild(option);
+}
+
+function setLoading(select, message = "Cargando...") {
+  select.innerHTML = "";
+  const option = document.createElement("option");
+  option.textContent = message;
+  option.value = "";
+  option.disabled = true;
+  option.selected = true;
+  select.appendChild(option);
+  select.disabled = true;
+}
+
+function setOptions(select, items, placeholder, mapper) {
+  clearSelect(select, placeholder);
+  items.forEach((item) => {
+    const option = document.createElement("option");
+    if (mapper) {
+      const mapped = mapper(item);
+      option.value = mapped.value;
+      option.textContent = mapped.label;
+      if (mapped.data) {
+        Object.entries(mapped.data).forEach(([key, value]) => {
+          option.dataset[key] = value;
+        });
+      }
+    } else {
+      option.value = item;
+      option.textContent = item;
+    }
+    select.appendChild(option);
+  });
+  select.disabled = false;
+}
+
+// Helpers de red (sin endpoints adicionales)
+async function apiGet(path) {
+  const res = await fetch(`${API_BASE}${path}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function formatJson(data) {
+  return JSON.stringify(data, null, 2);
+}
+
+function updateButtonsState() {
+  const ready =
+    state.pais &&
+    state.liga &&
+    state.temporada.nombre &&
+    state.fase &&
+    state.equipoLocal.nombre &&
+    state.equipoVisitante.nombre &&
+    state.equipoLocal.nombre !== state.equipoVisitante.nombre;
+
+  const idsReady =
+    ready &&
+    Number.isFinite(state.temporada.id) &&
+    Number.isFinite(state.equipoLocal.id) &&
+    Number.isFinite(state.equipoVisitante.id);
+
+  els.poissonBtn.disabled = !idsReady;
+  els.b10bBtn.disabled = !idsReady;
+
+  if (!ready) {
+    setHint("Completa la seleccion para habilitar analisis.");
+  } else if (!idsReady) {
+    setHint("Los analisis requieren IDs validos de temporada y equipos.");
+  } else {
+    setHint("Listo para analizar.");
+  }
+
+  if (
+    state.equipoLocal.nombre &&
+    state.equipoVisitante.nombre &&
+    state.equipoLocal.nombre === state.equipoVisitante.nombre
+  ) {
+    setHint("Equipo local y visitante no pueden ser iguales.", true);
+  }
+}
+
+function resetResults() {
+  els.poissonStatus.textContent = "Sin ejecutar";
+  els.poissonStatus.className = "status-pill muted";
+  els.b10bStatus.textContent = "Sin ejecutar";
+  els.b10bStatus.className = "status-pill muted";
+  els.poissonSummary.innerHTML = "";
+  els.b10bSummary.innerHTML = "";
+  els.poissonJson.textContent = formatJson({ status: "pending" });
+  els.b10bJson.textContent = formatJson({ status: "pending" });
+}
+
+function setSummary(container, rows) {
+  if (!rows || rows.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+  const table = document.createElement("table");
+  rows.forEach(([label, value]) => {
+    const tr = document.createElement("tr");
+    const tdLabel = document.createElement("td");
+    const tdValue = document.createElement("td");
+    tdLabel.textContent = label;
+    tdValue.textContent = value;
+    tdValue.className = "value";
+    tr.appendChild(tdLabel);
+    tr.appendChild(tdValue);
+    table.appendChild(tr);
+  });
+  container.innerHTML = "";
+  container.appendChild(table);
+}
+
+// Carga de catalogos en cascada
+async function loadPaises() {
+  setLoading(els.pais);
+  try {
+    const data = await apiGet("/catalog/paises");
+    setOptions(els.pais, data.items, "Selecciona pais");
+  } catch (err) {
+    setHint(`Error cargando paises: ${err.message}`, true);
+    clearSelect(els.pais, "Error al cargar");
+  }
+}
+
+async function loadLigas() {
+  setLoading(els.liga);
+  try {
+    const data = await apiGet(`/catalog/ligas?pais=${encodeURIComponent(state.pais)}`);
+    setOptions(els.liga, data.items, "Selecciona liga");
+  } catch (err) {
+    setHint(`Error cargando ligas: ${err.message}`, true);
+    clearSelect(els.liga, "Error al cargar");
+  }
+}
+
+async function loadTemporadas() {
+  setLoading(els.temporada);
+  try {
+    const data = await apiGet(
+      `/catalog/temporadas?pais=${encodeURIComponent(state.pais)}&liga=${encodeURIComponent(state.liga)}`
+    );
+    setOptions(els.temporada, data.items, "Selecciona temporada", (item) => ({
+      value: item.id ?? "",
+      label: item.nombre,
+      data: { nombre: item.nombre, id: item.id ?? "" },
+    }));
+  } catch (err) {
+    setHint(`Error cargando temporadas: ${err.message}`, true);
+    clearSelect(els.temporada, "Error al cargar");
+  }
+}
+
+async function loadFases() {
+  setLoading(els.fase);
+  try {
+    const data = await apiGet(
+      `/catalog/fases?pais=${encodeURIComponent(state.pais)}&liga=${encodeURIComponent(state.liga)}&temporada=${encodeURIComponent(state.temporada.nombre)}`
+    );
+    setOptions(els.fase, data.items, "Selecciona fase");
+  } catch (err) {
+    setHint(`Error cargando fases: ${err.message}`, true);
+    clearSelect(els.fase, "Error al cargar");
+  }
+}
+
+async function loadEquipos() {
+  setLoading(els.local);
+  setLoading(els.visitante);
+  try {
+    const data = await apiGet(
+      `/catalog/equipos?pais=${encodeURIComponent(state.pais)}&liga=${encodeURIComponent(state.liga)}&temporada=${encodeURIComponent(state.temporada.nombre)}&fase=${encodeURIComponent(state.fase)}`
+    );
+    const mapper = (item) => ({
+      value: item.id ?? "",
+      label: item.nombre,
+      data: { nombre: item.nombre, id: item.id ?? "" },
+    });
+    setOptions(els.local, data.items, "Selecciona equipo local", mapper);
+    setOptions(els.visitante, data.items, "Selecciona equipo visitante", mapper);
+  } catch (err) {
+    setHint(`Error cargando equipos: ${err.message}`, true);
+    clearSelect(els.local, "Error al cargar");
+    clearSelect(els.visitante, "Error al cargar");
+  }
+}
+
+function resetDownstream(...selects) {
+  selects.forEach((select) => {
+    select.disabled = true;
+  });
+}
+
+function handlePaisChange() {
+  state.pais = els.pais.value || null;
+  state.liga = null;
+  state.temporada = { id: null, nombre: null };
+  state.fase = null;
+  state.equipoLocal = { id: null, nombre: null };
+  state.equipoVisitante = { id: null, nombre: null };
+
+  clearSelect(els.liga, "Selecciona liga");
+  clearSelect(els.temporada, "Selecciona temporada");
+  clearSelect(els.fase, "Selecciona fase");
+  clearSelect(els.local, "Selecciona equipo local");
+  clearSelect(els.visitante, "Selecciona equipo visitante");
+
+  resetDownstream(els.liga, els.temporada, els.fase, els.local, els.visitante);
+  resetResults();
+  updateButtonsState();
+
+  if (state.pais) {
+    loadLigas();
+  }
+}
+
+function handleLigaChange() {
+  state.liga = els.liga.value || null;
+  state.temporada = { id: null, nombre: null };
+  state.fase = null;
+  state.equipoLocal = { id: null, nombre: null };
+  state.equipoVisitante = { id: null, nombre: null };
+
+  clearSelect(els.temporada, "Selecciona temporada");
+  clearSelect(els.fase, "Selecciona fase");
+  clearSelect(els.local, "Selecciona equipo local");
+  clearSelect(els.visitante, "Selecciona equipo visitante");
+
+  resetDownstream(els.temporada, els.fase, els.local, els.visitante);
+  resetResults();
+  updateButtonsState();
+
+  if (state.liga) {
+    loadTemporadas();
+  }
+}
+
+function handleTemporadaChange() {
+  const selected = els.temporada.options[els.temporada.selectedIndex];
+  state.temporada = {
+    id: selected?.dataset?.id ? Number(selected.dataset.id) : null,
+    nombre: selected?.dataset?.nombre || null,
+  };
+  state.fase = null;
+  state.equipoLocal = { id: null, nombre: null };
+  state.equipoVisitante = { id: null, nombre: null };
+
+  clearSelect(els.fase, "Selecciona fase");
+  clearSelect(els.local, "Selecciona equipo local");
+  clearSelect(els.visitante, "Selecciona equipo visitante");
+
+  resetDownstream(els.fase, els.local, els.visitante);
+  resetResults();
+  updateButtonsState();
+
+  if (state.temporada.nombre) {
+    loadFases();
+  }
+}
+
+function handleFaseChange() {
+  state.fase = els.fase.value || null;
+  state.equipoLocal = { id: null, nombre: null };
+  state.equipoVisitante = { id: null, nombre: null };
+
+  clearSelect(els.local, "Selecciona equipo local");
+  clearSelect(els.visitante, "Selecciona equipo visitante");
+
+  resetDownstream(els.local, els.visitante);
+  resetResults();
+  updateButtonsState();
+
+  if (state.fase) {
+    loadEquipos();
+  }
+}
+
+function handleEquipoChange(source) {
+  const localOption = els.local.options[els.local.selectedIndex];
+  const visitOption = els.visitante.options[els.visitante.selectedIndex];
+
+  state.equipoLocal = {
+    id: localOption?.dataset?.id ? Number(localOption.dataset.id) : null,
+    nombre: localOption?.dataset?.nombre || null,
+  };
+
+  state.equipoVisitante = {
+    id: visitOption?.dataset?.id ? Number(visitOption.dataset.id) : null,
+    nombre: visitOption?.dataset?.nombre || null,
+  };
+
+  if (
+    state.equipoLocal.id !== null &&
+    state.equipoVisitante.id !== null &&
+    state.equipoLocal.id === state.equipoVisitante.id
+  ) {
+    if (source === "local") {
+      els.visitante.selectedIndex = 0;
+      state.equipoVisitante = { id: null, nombre: null };
+    } else {
+      els.local.selectedIndex = 0;
+      state.equipoLocal = { id: null, nombre: null };
+    }
+  }
+
+  syncTeamOptions();
+  updateButtonsState();
+}
+
+// Evita seleccionar el mismo equipo en ambos selectores
+function syncTeamOptions() {
+  const localId = state.equipoLocal.id;
+  const visitId = state.equipoVisitante.id;
+
+  Array.from(els.visitante.options).forEach((opt) => {
+    if (!opt.value) return;
+    opt.disabled = localId !== null && Number(opt.value) === localId;
+  });
+
+  Array.from(els.local.options).forEach((opt) => {
+    if (!opt.value) return;
+    opt.disabled = visitId !== null && Number(opt.value) === visitId;
+  });
+}
+
+async function analyzePoisson() {
+  setHint("Ejecutando analisis Poisson...");
+  els.poissonStatus.textContent = "Analizando...";
+  els.poissonStatus.className = "status-pill";
+  els.poissonBtn.disabled = true;
+
+  try {
+    const body = {
+      temporada_id: state.temporada.id,
+      equipo_local_id: state.equipoLocal.id,
+      equipo_visitante_id: state.equipoVisitante.id,
+      umbral_goles: Number(els.umbral.value),
+    };
+
+    const data = await apiPost("/analysis/poisson", body);
+    els.poissonJson.textContent = formatJson(data);
+
+    setSummary(els.poissonSummary, [
+      ["Local", data.equipo_local],
+      ["Visitante", data.equipo_visitante],
+      ["Total xG", data.total_goles_esperados],
+      ["Recomendacion", data.probabilidades?.recomendacion || "-"],
+      ["Confianza", data.probabilidades?.confianza || "-"],
+    ]);
+
+    els.poissonStatus.textContent = "Listo";
+    els.poissonStatus.className = "status-pill";
+    setHint("Poisson ejecutado correctamente.");
+  } catch (err) {
+    els.poissonJson.textContent = formatJson({ error: err.message });
+    els.poissonStatus.textContent = "Error";
+    els.poissonStatus.className = "status-pill error";
+    setHint(`Error Poisson: ${err.message}`, true);
+  } finally {
+    updateButtonsState();
+  }
+}
+
+async function analyzeB10B() {
+  setHint("Ejecutando analisis B10B...");
+  els.b10bStatus.textContent = "Analizando...";
+  els.b10bStatus.className = "status-pill";
+  els.b10bBtn.disabled = true;
+
+  try {
+    const body = {
+      tipo: "B10B",
+      filtros: {
+        pais: state.pais,
+        liga: state.liga,
+        temporada: state.temporada.nombre,
+        fase: state.fase,
+      },
+      parametros: {
+        equipo_local_id: state.equipoLocal.id,
+        equipo_visitante_id: state.equipoVisitante.id,
+        umbral: Number(els.umbral.value),
+      },
+    };
+
+    const data = await apiPost("/analysis/b10b", body);
+    els.b10bJson.textContent = formatJson(data);
+
+    setSummary(els.b10bSummary, [
+      ["Recomendacion", data.resumen?.recomendacion || "-"],
+      ["Confianza", data.resumen?.confianza || "-"],
+      ["Goles esperados", data.resumen?.goles_esperados_total || "-"],
+    ]);
+
+    els.b10bStatus.textContent = "Listo";
+    els.b10bStatus.className = "status-pill";
+    setHint("B10B ejecutado correctamente.");
+  } catch (err) {
+    els.b10bJson.textContent = formatJson({ error: err.message });
+    els.b10bStatus.textContent = "Error";
+    els.b10bStatus.className = "status-pill error";
+    setHint(`Error B10B: ${err.message}`, true);
+  } finally {
+    updateButtonsState();
+  }
+}
+
+function initListeners() {
+  els.pais.addEventListener("change", handlePaisChange);
+  els.liga.addEventListener("change", handleLigaChange);
+  els.temporada.addEventListener("change", handleTemporadaChange);
+  els.fase.addEventListener("change", handleFaseChange);
+  els.local.addEventListener("change", () => handleEquipoChange("local"));
+  els.visitante.addEventListener("change", () => handleEquipoChange("visitante"));
+
+  els.poissonBtn.addEventListener("click", analyzePoisson);
+  els.b10bBtn.addEventListener("click", analyzeB10B);
+}
+
+async function bootstrap() {
+  resetResults();
+  updateButtonsState();
+  initListeners();
+  await loadPaises();
+}
+
+bootstrap();
+  </script>
+</body>
+</html>

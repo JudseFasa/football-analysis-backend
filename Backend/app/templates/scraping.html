@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estado del Scraping</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        .header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .error-message {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .no-job {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+            color: #666;
+        }
+        
+        .job-card {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .job-id {
+            font-size: 12px;
+            color: #999;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-pending {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status-running {
+            background: #fff3e0;
+            color: #f57c00;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .status-done {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+        
+        .status-failed {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .job-info {
+            margin-bottom: 20px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            color: #666;
+            font-weight: 500;
+            min-width: 120px;
+        }
+        
+        .info-value {
+            color: #333;
+            text-align: right;
+            flex: 1;
+            margin-left: 15px;
+            word-break: break-word;
+        }
+        
+        .info-value.url {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+        
+        .info-value.timestamp {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .metrics-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .metrics-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+        
+        .metric {
+            text-align: center;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metric.success .metric-value {
+            color: #388e3c;
+        }
+        
+        .metric.warning .metric-value {
+            color: #f57c00;
+        }
+        
+        .metric.error .metric-value {
+            color: #c62828;
+        }
+        
+        .status-message {
+            background: #fff3e0;
+            border-left: 4px solid #f57c00;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .status-message strong {
+            color: #f57c00;
+        }
+        
+        .error-section {
+            background: #ffebee;
+            border-left: 4px solid #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+        
+        .error-section .label {
+            font-weight: 600;
+            color: #c62828;
+            margin-bottom: 8px;
+        }
+        
+        .error-section .message {
+            color: #666;
+            font-family: 'Courier New', monospace;
+            word-break: break-word;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .button-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .button-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .button-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        .button-secondary:hover {
+            background: #d0d0d0;
+            transform: translateY(-2px);
+        }
+        
+        .button:active {
+            transform: translateY(0);
+        }
+        
+        .refresh-hint {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 25px;
+            }
+            
+            .header h1 {
+                font-size: 22px;
+            }
+            
+            .job-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .info-row {
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            .info-value {
+                text-align: left;
+                margin-left: 0;
+            }
+            
+            .actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Error -->
+        {% if error %}
+        <div class="header">
+            <h1>⚠️ Error</h1>
+        </div>
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Job no encontrado -->
+        {% if not job and not error %}
+        <div class="header">
+            <h1>Sin resultados</h1>
+        </div>
+        <div class="no-job">
+            <p>No hay información disponible para mostrar.</p>
+            <p style="margin-top: 10px; font-size: 12px;">Inicia un nuevo scraping desde el dashboard.</p>
+        </div>
+        {% endif %}
+
+        <!-- Job encontrado -->
+        {% if job %}
+        <div class="header">
+            <h1>
+                {% if job.status == "running" %}
+                    🔄 Scraping en ejecución...
+                {% elif job.status == "done" %}
+                    ✅ Scraping completado
+                {% elif job.status == "failed" %}
+                    ❌ Scraping fallido
+                {% else %}
+                    ⏳ Scraping pendiente
+                {% endif %}
+            </h1>
+        </div>
+        {% endif %}
+
+        <!-- Tarjeta del Job -->
+        <div class="job-card">
+            <!-- Header con ID y Status -->
+            <div class="job-header">
+                <div>
+                    <div class="job-id">Job ID: {{ job.id }}</div>
+                </div>
+                <div class="status-badge status-{{ job.status }}">
+                    {{ job.status }}
+                </div>
+            </div>
+
+            <!-- Información del Job -->
+            <div class="job-info">
+                <div class="info-row">
+                    <span class="info-label">URL</span>
+                    <span class="info-value url">{{ job.url }}</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">Tipo</span>
+                    <span class="info-value">{{ job.tipo }}</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">Creado</span>
+                    <span class="info-value timestamp">
+                        {% if job.created_at %}
+                            {{ job.created_at.strftime("%Y-%m-%d %H:%M:%S") }} UTC
+                        {% else %}
+                            —
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">Iniciado</span>
+                    <span class="info-value timestamp">
+                        {% if job.started_at %}
+                            {{ job.started_at.strftime("%Y-%m-%d %H:%M:%S") }} UTC
+                        {% else %}
+                            —
+                        {% endif %}
+                    </span>
+                </div>
+                
+                {% if job.finished_at %}
+                <div class="info-row">
+                    <span class="info-label">Finalizado</span>
+                    <span class="info-value timestamp">
+                        {{ job.finished_at.strftime("%Y-%m-%d %H:%M:%S") }} UTC
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Mensaje si está ejecutándose -->
+            {% if job.status == "running" %}
+            <div class="status-message">
+                <strong>⏳ En progreso:</strong> Por favor, espera a que el scraping se complete o actualiza el estado.
+            </div>
+            {% endif %}
+
+            <!-- Métricas -->
+            {% if job.metrics %}
+            <div class="metrics-section">
+                <div class="metrics-title">Resultados</div>
+                <div class="metrics-grid">
+                    <div class="metric success">
+                        <div class="metric-value">{{ job.metrics.get('partidos_nuevos', 0) }}</div>
+                        <div class="metric-label">Partidos<br/>Nuevos</div>
+                    </div>
+                    <div class="metric success">
+                        <div class="metric-value">{{ job.metrics.get('eventos_nuevos', 0) }}</div>
+                        <div class="metric-label">Eventos<br/>Nuevos</div>
+                    </div>
+                    <div class="metric {% if job.metrics.get('errores', 0) > 0 %}error{% else %}success{% endif %}">
+                        <div class="metric-value">{{ job.metrics.get('errores', 0) }}</div>
+                        <div class="metric-label">Errores</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Mensaje de error si falló -->
+            {% if job.status == "failed" and job.error_message %}
+            <div class="error-section">
+                <div class="label">Error:</div>
+                <div class="message">{{ job.error_message }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Acciones -->
+        <div class="actions">
+            {% if job.status == "running" %}
+            <form action="/scraping/{{ job.id }}" method="get" style="flex: 1;">
+                <button type="submit" class="button button-primary" style="width: 100%;">
+                    🔄 Actualizar estado
+                </button>
+            </form>
+            {% endif %}
+            
+            <a href="/" class="button button-secondary">
+                ⬅️ Volver al Dashboard
+            </a>
+        </div>
+
+        <!-- Hint para refresh -->
+        {% if job.status == "running" %}
+        <div class="refresh-hint">
+            💡 La página se actualizará cada vez que hagas clic en "Actualizar estado"<br/>
+            (En el futuro, se actualizará automáticamente)
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
