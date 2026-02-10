@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.concurrency import run_in_threadpool
 from pathlib import Path
 import logging
-from scrapers.flashscore_adapter import scrape_partidos_liga_sync, scrape_goles_partido
+from scrapers.flashscore_adapter import scrape_partidos_liga_sync, scrape_goles_partidos_sync
 from app.jobs import manager as job_manager
 
 logger = logging.getLogger(__name__)
@@ -55,15 +55,16 @@ async def manual_scraping(request: Request, url: str = Form(...)):
         partidos = await run_in_threadpool(scrape_partidos_liga_sync, url)
         partidos_nuevos = len(partidos) if partidos is not None else 0
 
-        # Scraping de goles para cada partido
+        # Scraping de goles para cada partido (batch con concurrencia limitada)
         if partidos:
-            for partido in partidos:
-                try:
-                    eventos = await run_in_threadpool(scrape_goles_partido, partido.link)
+            links = [p.link for p in partidos if p.link]
+            try:
+                resultados = await run_in_threadpool(scrape_goles_partidos_sync, links)
+                for link, eventos in resultados.items():
                     eventos_nuevos += len(eventos) if eventos else 0
-                except Exception as e:
-                    logger.error(f"Error scraping goles para {partido.link}: {e}")
-                    errores += 1
+            except Exception as e:
+                logger.error(f"Error scraping goles batch: {e}")
+                errores += 1
 
         metrics = {
             "partidos_nuevos": partidos_nuevos,

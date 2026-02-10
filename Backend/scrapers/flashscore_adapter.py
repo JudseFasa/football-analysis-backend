@@ -22,10 +22,19 @@ import os
 from scrapers.browser import get_launch_kwargs
 import re
 from urllib.parse import urlsplit, urlunsplit
+import time
 
 # ===== LOGGING MÍNIMO =====
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
+
+DEFAULT_TIMEOUT_MS = 30000
+GOTO_RETRIES = 2
+GOTO_BACKOFF_SECONDS = 0.8
+MAX_CONCURRENCY = 3
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+VIEWPORT = {"width": 1366, "height": 768}
+BLOCKED_RESOURCE_TYPES = {"image", "media", "font", "stylesheet"}
 
 # ===== FUNCIÓN PARA EXTRAER SLUG DEL PAÍS =====
 def extract_country_slug_from_url(url: str) -> str:
@@ -108,6 +117,72 @@ def _format_country_from_slug(slug: str) -> str:
     if not slug:
         return "Pais Desconocido"
     return " ".join(part.capitalize() for part in slug.split("-") if part)
+
+
+async def _route_block_resources(route):
+    try:
+        if route.request.resource_type in BLOCKED_RESOURCE_TYPES:
+            await route.abort()
+        else:
+            await route.continue_()
+    except Exception:
+        try:
+            await route.continue_()
+        except Exception:
+            pass
+
+
+def _route_block_resources_sync(route):
+    try:
+        if route.request.resource_type in BLOCKED_RESOURCE_TYPES:
+            route.abort()
+        else:
+            route.continue_()
+    except Exception:
+        try:
+            route.continue_()
+        except Exception:
+            pass
+
+
+async def _new_context_async(browser):
+    context = await browser.new_context(user_agent=USER_AGENT, viewport=VIEWPORT)
+    await context.route("**/*", _route_block_resources)
+    return context
+
+
+def _new_context_sync(browser):
+    context = browser.new_context(user_agent=USER_AGENT, viewport=VIEWPORT)
+    context.route("**/*", _route_block_resources_sync)
+    return context
+
+
+async def _goto_with_retries(page, url: str, timeout_ms: int = DEFAULT_TIMEOUT_MS):
+    last_exc = None
+    for attempt in range(GOTO_RETRIES + 1):
+        try:
+            await page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
+            return
+        except Exception as exc:
+            last_exc = exc
+            if attempt < GOTO_RETRIES:
+                await asyncio.sleep(GOTO_BACKOFF_SECONDS * (2 ** attempt))
+    if last_exc:
+        raise last_exc
+
+
+def _goto_with_retries_sync(page, url: str, timeout_ms: int = DEFAULT_TIMEOUT_MS):
+    last_exc = None
+    for attempt in range(GOTO_RETRIES + 1):
+        try:
+            page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
+            return
+        except Exception as exc:
+            last_exc = exc
+            if attempt < GOTO_RETRIES:
+                time.sleep(GOTO_BACKOFF_SECONDS * (2 ** attempt))
+    if last_exc:
+        raise last_exc
 
 # ===== MODELOS PYDANTIC =====
 class PartidoScraped(BaseModel):
@@ -239,6 +314,66 @@ def _parse_minuto_int(minuto_str: str) -> int:
         return 0
 
 
+def _infer_year_from_temporada(month: int, temporada: Optional[str], fallback_year: int) -> int:
+    if not temporada:
+        return fallback_year
+    temporada = temporada.strip()
+    if not temporada:
+        return fallback_year
+
+    match = re.search(r"(\d{4})\s*/\s*(\d{2,4})", temporada)
+    if match:
+        start_year = int(match.group(1))
+        end_raw = match.group(2)
+        if len(end_raw) == 2:
+            end_year = (start_year // 100) * 100 + int(end_raw)
+            if end_year < start_year:
+                end_year += 100
+        else:
+            end_year = int(end_raw)
+        return start_year if month >= 7 else end_year
+
+    match = re.search(r"(\d{4})", temporada)
+    if match:
+        return int(match.group(1))
+
+    return fallback_year
+
+
+def _parse_fecha_raw(fecha_raw: str, temporada: Optional[str]) -> Optional[datetime]:
+    if not fecha_raw or not isinstance(fecha_raw, str):
+        return None
+    try:
+        fecha_raw = ' '.join(fecha_raw.strip().split())
+        parts = fecha_raw.split()
+        if len(parts) < 2:
+            return None
+
+        fecha_parte = parts[0].rstrip(".")
+        hora_parte = parts[1]
+
+        fecha_split = fecha_parte.split(".")
+        if len(fecha_split) < 2:
+            return None
+
+        day = int(fecha_split[0])
+        month = int(fecha_split[1])
+        if len(fecha_split) >= 3 and fecha_split[2].isdigit():
+            year = int(fecha_split[2])
+        else:
+            fallback_year = datetime.now(timezone.utc).year
+            year = _infer_year_from_temporada(month, temporada, fallback_year)
+
+        hora_split = hora_parte.split(":")
+        hour = int(hora_split[0])
+        minute = int(hora_split[1]) if len(hora_split) > 1 else 0
+        second = int(hora_split[2]) if len(hora_split) > 2 else 0
+
+        return datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
 def _is_final_score(home_score: str, away_score: str) -> bool:
     """
     Retorna True si ambos marcadores son numéricos.
@@ -254,19 +389,23 @@ def _is_final_score(home_score: str, away_score: str) -> bool:
 
 
 # ===== FUNCIÓN PRINCIPAL: SCRAPING DE PARTIDOS =====
-async def scrape_partidos_liga(url: str, only_finished: bool = True) -> List[PartidoScraped]:
+async def scrape_partidos_liga(
+    url: str,
+    only_finished: bool = True,
+    min_date: Optional[datetime] = None,
+    max_partidos: Optional[int] = None,
+) -> List[PartidoScraped]:
     """
     Recibe una URL de liga de Flashscore
     Devuelve una lista de partidos scrapeados
     """
     partidos: List[PartidoScraped] = []
+    if min_date and min_date.tzinfo is None:
+        min_date = min_date.replace(tzinfo=timezone.utc)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(**get_launch_kwargs(headless=True))
-
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        )
+        context = await _new_context_async(browser)
         page = await context.new_page()
 
         try:
@@ -275,12 +414,12 @@ async def scrape_partidos_liga(url: str, only_finished: bool = True) -> List[Par
             
             # Cargar página (forzar resultados si se requieren finalizados)
             target_url = _normalize_results_url(url) if only_finished else url
-            await page.goto(target_url, timeout=60000, wait_until="domcontentloaded")
+            await _goto_with_retries(page, target_url)
 
             if only_finished:
                 redirected = _maybe_force_results_url(page.url)
                 if redirected != page.url:
-                    await page.goto(redirected, timeout=60000, wait_until="domcontentloaded")
+                    await _goto_with_retries(page, redirected)
 
             # Extraer metadata
             pais = await _resolve_country_from_page(page, pais_slug)
@@ -307,6 +446,8 @@ async def scrape_partidos_liga(url: str, only_finished: bool = True) -> List[Par
                         f"document.querySelectorAll('.event__match').length > {partidos_antes}",
                         timeout=10000
                     )
+                    if max_partidos and partidos_antes >= max_partidos:
+                        break
                 except Exception as e:
                     logger.error(f"Error en click: {e}")
                     break
@@ -351,6 +492,11 @@ async def scrape_partidos_liga(url: str, only_finished: bool = True) -> List[Par
                         if not _is_final_score(goles_local_str, goles_visitante_str):
                             continue
 
+                        if min_date:
+                            fecha_dt = _parse_fecha_raw(hora, temporada)
+                            if fecha_dt and fecha_dt < min_date:
+                                continue
+
                         # Convertir goles a int
                         try:
                             goles_local = int(goles_local_str)
@@ -378,6 +524,8 @@ async def scrape_partidos_liga(url: str, only_finished: bool = True) -> List[Par
                         )
 
                         partidos.append(partido)
+                        if max_partidos and len(partidos) >= max_partidos:
+                            break
 
                     except Exception as e:
                         logger.error(f"Error en partido #{i}: {e}")
@@ -401,87 +549,88 @@ async def scrape_partidos_liga(url: str, only_finished: bool = True) -> List[Par
 
 
 # ===== FUNCIÓN HELPER ASYNC: SCRAPING DE GOLES (ASÍNCRONA INTERNA) =====
-async def _scrape_goles_partido_async(partido_link: str) -> List[EventoScraped]:
+async def _scrape_goles_partido_page(page, partido_link: str) -> List[EventoScraped]:
     """
-    Versión async interna para scrapear goles
+    Versión async interna para scrapear goles usando un page existente.
     """
     eventos: List[EventoScraped] = []
+    try:
+        await _goto_with_retries(page, partido_link, timeout_ms=DEFAULT_TIMEOUT_MS)
+        await page.wait_for_selector("div.smv__verticalSections.section", timeout=10000)
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(**get_launch_kwargs(headless=True))
+        root = page.locator("div.smv__verticalSections.section")
+        items_incidentes = root.locator(":scope > div")
 
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        )
-        page = await context.new_page()
+        tiempo = None
 
-        try:
-            await page.goto(partido_link, timeout=30000, wait_until="domcontentloaded")
+        count = await items_incidentes.count()
+        for i in range(count):
+            bloque = items_incidentes.nth(i)
 
-            await page.wait_for_selector("div.smv__verticalSections.section", timeout=10000)
+            if await bloque.locator(".wcl-cell_1y2-p").count() > 0:
+                tiempo = (await bloque.locator(".wcl-cell_1y2-p").first.inner_text()).strip()
 
-            root = page.locator("div.smv__verticalSections.section")
-            items_incidentes = root.locator(":scope > div")
+            elif await bloque.locator('[data-testid="wcl-icon-incidents-goal-soccer"]').count() > 0:
+                try:
+                    if await bloque.locator(".smv__incidentHomeScore").count() > 0:
+                        es_local = True
+                    elif await bloque.locator(".smv__incidentAwayScore").count() > 0:
+                        es_local = False
+                    else:
+                        es_local = None
 
-            tiempo = None
-
-            count = await items_incidentes.count()
-            for i in range(count):
-                bloque = items_incidentes.nth(i)
-
-                if await bloque.locator(".wcl-cell_1y2-p").count() > 0:
-                    tiempo = (await bloque.locator(".wcl-cell_1y2-p").first.inner_text()).strip()
-
-                elif await bloque.locator('[data-testid="wcl-icon-incidents-goal-soccer"]').count() > 0:
-                    try:
-                        if await bloque.locator(".smv__incidentHomeScore").count() > 0:
-                            es_local = True
-                        elif await bloque.locator(".smv__incidentAwayScore").count() > 0:
-                            es_local = False
-                        else:
-                            es_local = None
-
-                        if es_local is None:
-                            continue
-
-                        minuto_elem = bloque.locator(".smv__timeBox")
-                        if await minuto_elem.count() > 0:
-                            minuto_raw = (await minuto_elem.inner_text()).strip()
-                            minuto_int = _parse_minuto_int(minuto_raw)
-                        else:
-                            minuto_raw = ""
-                            minuto_int = 0
-
-                        jugador_elem = bloque.locator(".smv__participantName")
-                        if await jugador_elem.count() > 0:
-                            jugador = (await jugador_elem.inner_text()).strip()
-                        else:
-                            jugador = None
-
-                        evento = EventoScraped(
-                            partido_link=partido_link,
-                            equipo="",
-                            es_local=es_local,
-                            tipo="gol",
-                            minuto=minuto_int,
-                            minuto_raw=minuto_raw if minuto_raw else None,
-                            tiempo=tiempo,
-                            jugador=jugador,
-                            scraped_at=datetime.now(timezone.utc)
-                        )
-
-                        eventos.append(evento)
-
-                    except Exception as e:
-                        logger.error(f"Error extrayendo gol: {e}")
+                    if es_local is None:
                         continue
 
-            return eventos
+                    minuto_elem = bloque.locator(".smv__timeBox")
+                    if await minuto_elem.count() > 0:
+                        minuto_raw = (await minuto_elem.inner_text()).strip()
+                        minuto_int = _parse_minuto_int(minuto_raw)
+                    else:
+                        minuto_raw = ""
+                        minuto_int = 0
 
-        except Exception as e:
-            logger.error(f"Error en {partido_link}: {e}")
-            return []
+                    jugador_elem = bloque.locator(".smv__participantName")
+                    if await jugador_elem.count() > 0:
+                        jugador = (await jugador_elem.inner_text()).strip()
+                    else:
+                        jugador = None
 
+                    evento = EventoScraped(
+                        partido_link=partido_link,
+                        equipo="",
+                        es_local=es_local,
+                        tipo="gol",
+                        minuto=minuto_int,
+                        minuto_raw=minuto_raw if minuto_raw else None,
+                        tiempo=tiempo,
+                        jugador=jugador,
+                        scraped_at=datetime.now(timezone.utc)
+                    )
+
+                    eventos.append(evento)
+
+                except Exception as e:
+                    logger.error(f"Error extrayendo gol: {e}")
+                    continue
+
+        return eventos
+
+    except Exception as e:
+        logger.error(f"Error en {partido_link}: {e}")
+        return []
+
+
+async def _scrape_goles_partido_async(partido_link: str) -> List[EventoScraped]:
+    """
+    Versión async interna para scrapear goles (crea browser/context).
+    """
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(**get_launch_kwargs(headless=True))
+        context = await _new_context_async(browser)
+        page = await context.new_page()
+        try:
+            return await _scrape_goles_partido_page(page, partido_link)
         finally:
             try:
                 await page.close()
@@ -495,6 +644,47 @@ async def _scrape_goles_partido_async(partido_link: str) -> List[EventoScraped]:
                 await browser.close()
             except Exception:
                 pass
+
+
+async def scrape_goles_partidos_async(partido_links: List[str], max_concurrency: int = MAX_CONCURRENCY) -> dict:
+    """
+    Scrapea goles de múltiples partidos reutilizando un único browser/context.
+    Retorna dict link -> lista de eventos.
+    """
+    resultados = {}
+    if not partido_links:
+        return resultados
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(**get_launch_kwargs(headless=True))
+        context = await _new_context_async(browser)
+        sem = asyncio.Semaphore(max_concurrency)
+
+        async def worker(link: str):
+            async with sem:
+                page = await context.new_page()
+                try:
+                    eventos = await _scrape_goles_partido_page(page, link)
+                    resultados[link] = eventos
+                finally:
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
+
+        try:
+            await asyncio.gather(*(worker(link) for link in partido_links))
+        finally:
+            try:
+                await context.close()
+            except Exception:
+                pass
+            try:
+                await browser.close()
+            except Exception:
+                pass
+
+    return resultados
 
 
 # ===== FUNCIÓN PRINCIPAL: SCRAPING DE GOLES (WRAPPER PARA THREADPOOL) =====
@@ -517,19 +707,38 @@ def scrape_goles_partido(partido_link: str) -> List[EventoScraped]:
         return asyncio.run(_scrape_goles_partido_async(partido_link))
 
 
+def scrape_goles_partidos_sync(partido_links: List[str], max_concurrency: int = MAX_CONCURRENCY) -> dict:
+    """
+    Wrapper síncrono para scrapear goles de múltiples partidos.
+    """
+    if sys.platform == 'win32':
+        loop = asyncio.ProactorEventLoop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(scrape_goles_partidos_async(partido_links, max_concurrency=max_concurrency))
+        finally:
+            loop.close()
+    else:
+        return asyncio.run(scrape_goles_partidos_async(partido_links, max_concurrency=max_concurrency))
+
+
 # ===== FUNCIÓN PRINCIPAL: SCRAPING DE PARTIDOS (SYNC) =====
-def scrape_partidos_liga_sync(url: str, only_finished: bool = True) -> List[PartidoScraped]:
+def scrape_partidos_liga_sync(
+    url: str,
+    only_finished: bool = True,
+    min_date: Optional[datetime] = None,
+    max_partidos: Optional[int] = None,
+) -> List[PartidoScraped]:
     """
     Versión síncrona de scrape_partidos_liga para compatibilidad con entornos sync.
     """
     partidos: List[PartidoScraped] = []
+    if min_date and min_date.tzinfo is None:
+        min_date = min_date.replace(tzinfo=timezone.utc)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(**get_launch_kwargs(headless=True))
-
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        )
+        context = _new_context_sync(browser)
         page = context.new_page()
 
         try:
@@ -538,12 +747,12 @@ def scrape_partidos_liga_sync(url: str, only_finished: bool = True) -> List[Part
             
             # Cargar página (forzar resultados si se requieren finalizados)
             target_url = _normalize_results_url(url) if only_finished else url
-            page.goto(target_url, timeout=60000, wait_until="domcontentloaded")
+            _goto_with_retries_sync(page, target_url)
 
             if only_finished:
                 redirected = _maybe_force_results_url(page.url)
                 if redirected != page.url:
-                    page.goto(redirected, timeout=60000, wait_until="domcontentloaded")
+                    _goto_with_retries_sync(page, redirected)
 
             # Extraer metadata
             pais = _resolve_country_from_page_sync(page, pais_slug)
@@ -570,6 +779,8 @@ def scrape_partidos_liga_sync(url: str, only_finished: bool = True) -> List[Part
                         f"document.querySelectorAll('.event__match').length > {partidos_antes}",
                         timeout=10000
                     )
+                    if max_partidos and partidos_antes >= max_partidos:
+                        break
                 except Exception as e:
                     logger.error(f"Error en click: {e}")
                     break
@@ -610,6 +821,11 @@ def scrape_partidos_liga_sync(url: str, only_finished: bool = True) -> List[Part
                         if not _is_final_score(goles_local_str, goles_visitante_str):
                             continue
 
+                        if min_date:
+                            fecha_dt = _parse_fecha_raw(hora, temporada)
+                            if fecha_dt and fecha_dt < min_date:
+                                continue
+
                         # Convertir goles a int
                         try:
                             goles_local = int(goles_local_str)
@@ -637,6 +853,8 @@ def scrape_partidos_liga_sync(url: str, only_finished: bool = True) -> List[Part
                         )
 
                         partidos.append(partido)
+                        if max_partidos and len(partidos) >= max_partidos:
+                            break
 
                     except Exception as e:
                         logger.error(f"Error en partido #{i}: {e}")
